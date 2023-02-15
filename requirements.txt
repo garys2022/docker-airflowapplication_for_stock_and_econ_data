@@ -1,0 +1,9 @@
+pandas==1.5.1
+PyMySQL==1.0.2
+cloudscraper==1.2.66
+SQLAlchemy==1.4.45
+SQLAlchemy-JSONField==1.0.1.post0
+SQLAlchemy-Utils==0.39.0
+numpy==1.23.3
+yfinance==0.1.87
+tqdm==4.64.1

@@ -199,13 +199,18 @@ def stock_econ_data_silver_to_gold(today):
             ~Spy_silver.gold.any()
         ).one()[0]
 
+        if earliest_stock_data_to_clean == None:
+            print('no uncleaned silver stock data find, return')
+            return
+
+
         silver_econ_datas = {}
         # get the earliest data that econ data have not been processed
-        for econ_data in econ_datas.category.keys():
-            econ_silver_db = econ_datas.category[econ_data].silver_db
-            earliest_stock_data_to_clean = np.amin([earliest_stock_data_to_clean,
-                                                    session.query(func.min(econ_silver_db.date)).filter(
-                                                        ~econ_silver_db.gold.any()).one()[0]])
+        #for econ_data in econ_datas.category.keys():
+        #    econ_silver_db = econ_datas.category[econ_data].silver_db
+        #    earliest_stock_data_to_clean = np.amin([earliest_stock_data_to_clean,
+        #                                            session.query(func.min(econ_silver_db.date)).filter(
+        #                                                ~econ_silver_db.gold.any()).one()[0]])
 
         # to extract enough data to process
         earliest_stock_data_to_clean = earliest_stock_data_to_clean - timedelta(days=600)

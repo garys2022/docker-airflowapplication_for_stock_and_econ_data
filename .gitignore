@@ -7,3 +7,4 @@ plugins
 .env
 test.py
 .idea
+secret

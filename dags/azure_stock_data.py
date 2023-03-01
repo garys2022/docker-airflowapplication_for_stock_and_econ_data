@@ -24,6 +24,9 @@ from sqlalchemy import func
 
 import signal
 from contextlib import contextmanager
+from sqlalchemy import create_engine
+from airflow.hooks.base import BaseHook
+from airflow.models.connection import Connection
 
 
 @contextmanager
@@ -45,14 +48,25 @@ default_args = {
     'retry_delay': timedelta(seconds=300),
     'catchup':True
 }
-hook = MySqlHook(mysql_conn_id="mysqldb")
+#connecting to db https://stackoverflow.com/questions/67450086/cannot-get-custom-mysqloperator-to-work-in-airflow-extra-dejson-error-with-hook
+# include __extra__ separately.
+
+hook = BaseHook.get_hook(conn_id="mysql_azure")
+conn = BaseHook.get_connection(conn_id="mysql_azure")
+hostname = conn.host
+login = conn.login
+password = conn.password
+port = conn.port
+schema = conn.schema
+ssl_path = conn.extra_dejson['ssl']['ca']
+
+uri = f"mysql+pymysql://{login}:{password}@{hostname}:{port}/{schema}?ssl_ca={ssl_path}"
+engine = create_engine(uri)
 
 def raw_stock_data_etl(today):
     with time_limit(120):
 
-        #hook to db
-        engine = hook.get_sqlalchemy_engine()
-        print('hooked to db')
+        engine.connect()
 
         #record operation date
         today = datetime.strptime(today, '%Y-%m-%d').date()
@@ -83,8 +97,9 @@ def raw_stock_data_etl(today):
 def raw_econ_data_etl(today):
     with time_limit(120):
 
-        engine = hook.get_sqlalchemy_engine()
         print('hooked to db')
+        engine.connect()
+
 
         today = datetime.strptime(today, '%Y-%m-%d').date()
         plus_30_days = today + timedelta(days=30)
@@ -102,18 +117,22 @@ def raw_econ_data_etl(today):
 
 
 def stock_data_bronze_to_silver(today):
-    with time_limit(120):
+    with time_limit(600):
 
-        engine = hook.get_sqlalchemy_engine()
         print('hooked to db')
+        engine.connect()
 
         today = datetime.strptime(today, '%Y-%m-%d').date()
         print(f"Task for {today}")
 
         with Session(engine) as session:
+
+            print('testing')
             # get bronze data that not yet cleaned
             query = session.query(Spy).filter(~Spy.silver.any()).statement
             uncleaned_bronze_stock_data = pd.read_sql(query, session.bind)
+
+            print(f"{uncleaned_bronze_stock_data.shape} data to clean")
 
             # clean data (bronze --> silver data)
             silver_stock_data = stock_data_clean(uncleaned_bronze_stock_data)
@@ -144,10 +163,9 @@ def stock_data_bronze_to_silver(today):
 
 
 def econ_data_bronze_to_silver(today):
-    with time_limit(120):
+    with time_limit(600):
 
-        engine = hook.get_sqlalchemy_engine()
-        print('hooked to db')
+        engine.connect()
 
         today = datetime.strptime(today, '%Y-%m-%d').date()
         print(f"Task for {today}")
@@ -157,6 +175,8 @@ def econ_data_bronze_to_silver(today):
                 # got uncleaned object from bronze database
                 query = session.query(econ_data.bronze_db).filter(~econ_data.bronze_db.silver.any()).statement
                 uncleaned_bronze_econ_data = pd.read_sql(query, session.bind)
+
+                print(f"{uncleaned_bronze_econ_data.shape} data to clean")
 
                 if uncleaned_bronze_econ_data.size == 0:
                     print(f'no data to clean from {econ_data.name} bronze_db ')
@@ -186,8 +206,7 @@ def econ_data_bronze_to_silver(today):
 def stock_econ_data_silver_to_gold(today):
     pass
 
-    engine = hook.get_sqlalchemy_engine()
-    print('hooked to db')
+    engine.connect()
 
     today = datetime.strptime(today, '%Y-%m-%d').date()
     print(f"Task for {today}")
@@ -240,8 +259,8 @@ def stock_econ_data_silver_to_gold(today):
 
 with DAG(
         default_args=default_args,
-        dag_id='extract_raw_stock_data',
-        description='v11',
+        dag_id='extract_raw_stock_data_azure',
+        description='v13',
         start_date=datetime(2023, 1, 23),
         schedule_interval='0 0 * * 2-6'
 ) as dag:
